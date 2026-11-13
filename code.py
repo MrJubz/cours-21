@@ -70,6 +70,9 @@ class App(tk.Tk):
         ttk.Button(btns, text="Ajouter", command=self._on_add).grid(row=0, column=1, padx=5)
         ttk.Button(btns, text="Modifier", command=self._on_update).grid(row=0, column=2, padx=5)
         ttk.Button(btns, text="Supprimer", command=self._on_delete).grid(row=0, column=3, padx=5)
+        ttk.Button(btns, text="Mise a jour", command=self._on_update_window).grid(row=0, column=4, padx=5)
+        ttk.Button(btns, text="Import", command=self._on_import).grid(row=0, column=5, padx=5)
+        ttk.Button(btns, text="Export", command=self._on_export).grid(row=0, column=6, padx=5)
 
         # Tableau
         table_frame = ttk.LabelFrame(self, text="Liste des rendez-vous")
@@ -179,7 +182,6 @@ class App(tk.Tk):
 
         return client, activite, date, heure, int(duree), statut
 
-
     def _on_add(self):
         data = self._get_form_data()
         if data is None:
@@ -224,6 +226,102 @@ class App(tk.Tk):
             messagebox.showinfo("Modification", "RDV modifié avec succès")
         except ValueError as e:
             messagebox.showerror("Erreur", str(e))
+
+    def _on_update_window(self):
+        if self.selected_id is None:
+            messagebox.showwarning("Selection Requise", "Veuillez sélectinner un RDV à modifier")
+            return
+        row = self.conn.execute(
+            "SELECT client, activite, date, heure, duree, statut FROM rendezvous WHERE id=?",
+            (self.selected_id,)
+        ).fetchone()
+        if row is None:
+            messagebox.showerror("RDV introuvable", "Ce rendez-vous n'existe pas")
+            self._load_rows()
+            return
+        client, activite, date, heure, duree, statut = row
+        row_id = self.selected_id
+
+        win = tk.Toplevel()
+        win.title(f"Modifier le rendez-vous numéro {row_id}")
+        win.columnconfigure(0, weight=1)
+        win.rowconfigure(0, weight=1)
+
+        cadre = ttk.LabelFrame(win, text="Modification du RDV")
+        cadre.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+
+        cadre.columnconfigure(1, weight=1)
+        cadre.columnconfigure(3, weight=1)
+
+        # Ligne 0 : Client et activité
+        ttk.Label(cadre, text="Nom du client :").grid(row=0, column=0, padx=5, pady=8, sticky="w")
+        ent_client = ttk.Entry(cadre)
+        ent_client.grid(row=0, column=1, padx=5, pady=8, sticky="ew")
+        ent_client.insert(0, client)
+
+        ttk.Label(cadre, text="Activité :").grid(row=0, column=2, padx=5, pady=8, sticky="w")
+        combo_activite = ttk.Combobox(cadre, values=["Natation", "Yoga", "Musculation", "Tennis", "Fitness"], state="readonly")
+        combo_activite.grid(row=0, column=3, padx=5, pady=8, sticky="ew")
+        combo_activite.set(activite)
+
+        # Ligne 1 : Date et heure
+        ttk.Label(cadre, text="Date (AAAA-MM-JJ) :").grid(row=1, column=0, padx=5, pady=8, sticky="w")
+        ent_date = ttk.Entry(cadre)
+        ent_date.grid(row=1, column=1, padx=5, pady=8, sticky="ew")
+        ent_date.insert(0, date)
+
+        ttk.Label(cadre, text="Heure (HH:MM) :").grid(row=1, column=2, padx=5, pady=8, sticky="w")
+        ent_heure = ttk.Entry(cadre)
+        ent_heure.grid(row=1, column=3, padx=5, pady=8, sticky="ew")
+        ent_heure.insert(0, heure)
+
+        # Ligne 2 : Durée et statut
+        ttk.Label(cadre, text="Durée (minutes) :").grid(row=2, column=0, padx=5, pady=8, sticky="w")
+        ent_duree = ttk.Entry(cadre)
+        ent_duree.grid(row=2, column=1, padx=5, pady=8, sticky="ew")
+        ent_duree.insert(0, duree)
+
+        ttk.Label(cadre, text="Statut :").grid(row=2, column=2, padx=5, pady=8, sticky="w")
+        combo_statut = ttk.Combobox(cadre, values=["En attente", "Confirmé", "Annulé"], state="readonly")
+        combo_statut.grid(row=2, column=3, padx=5, pady=8, sticky="ew")
+        combo_statut.set(statut)
+
+        def _annuler():
+            win.destroy()
+
+        def confirmer():
+            n_client = ent_client.get()
+            n_activite = combo_activite.get()
+            n_date = ent_date.get()
+            n_heure = ent_heure.get()
+            n_duree = ent_duree.get()
+            n_statut = combo_statut.get()
+
+            if not n_client or not n_activite or not n_date or not n_heure or not n_duree or not n_statut:
+                messagebox.showwarning("Champs requis", "Veuillez remplir tous les champs", parent=win)
+                return
+
+            try:
+                self._update(row_id, n_client, n_activite, n_date, n_heure, int(n_duree), n_statut)
+                self._load_rows()
+                self._on_new()
+                win.destroy()
+                messagebox.showinfo("Modification", "RDV modifié avec succès")
+            except ValueError as e:
+                messagebox.showerror("Erreur", str(e))
+
+        # Boutons
+        btns = ttk.Frame(cadre)
+        btns.grid(row=3, column=0, columnspan=4, pady=12)
+
+        ttk.Button(btns, text="Confirmer", command=confirmer).grid(row=0, column=0, padx=5)
+        ttk.Button(btns, text="Annuler", command=_annuler).grid(row=0, column=1, padx=5)
+
+    def _on_import(self):
+        pass
+
+    def _on_export(self):
+        pass
 
     def _on_select(self, event=None):
         selected = self.tree.selection()
